@@ -3,6 +3,9 @@ const statusEl = document.getElementById("status");
 const copyBtn = document.getElementById("btn-copy");
 
 async function init() {
+    const settings = await gitcatGetSettings();
+    gitcatApplyDarkMode(settings.darkMode);
+
     const { gitcatText } = await chrome.storage.session.get("gitcatText");
     contentEl.textContent = gitcatText || "(no data)";
 }

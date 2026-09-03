@@ -1,4 +1,23 @@
-// Shared utilities for gitcat (used by content scripts and the raw page)
+// Shared utilities for gitcat (used by content scripts, the popup, and the raw page)
+
+const GITCAT_DEFAULT_SETTINGS = { recursive: false, darkMode: false };
+
+function gitcatGetSettings() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(GITCAT_DEFAULT_SETTINGS, resolve);
+    });
+}
+
+function gitcatSetSettings(partial) {
+    return new Promise((resolve) => {
+        chrome.storage.local.set(partial, resolve);
+    });
+}
+
+function gitcatApplyDarkMode(enabled) {
+    document.body.style.background = enabled ? "#1e1e1e" : "";
+    document.body.style.color = enabled ? "#ddd" : "";
+}
 
 const GITCAT_BINARY_EXTENSIONS = new Set([
     // images

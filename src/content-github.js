@@ -62,12 +62,12 @@ function gitcatRelativeChild(restPath, currentPath) {
     return remainder;
 }
 
-function gitcatScrapeChildren(owner, repo, branch, path) {
+function gitcatScrapeChildren(owner, repo, branch, path, root) {
     const regex = new RegExp(
         `^/${gitcatEscapeRegExp(owner)}/${gitcatEscapeRegExp(repo)}/(tree|blob)/([^/]+)/(.*)$`
     );
 
-    const anchors = document.querySelectorAll("a[href]");
+    const anchors = (root || document).querySelectorAll("a[href]");
     const seen = new Map();
     let resolvedBranch = branch;
 
@@ -120,6 +120,59 @@ async function gitcatFetchRawText(owner, repo, branch, path) {
     return await res.text();
 }
 
+// Fetches a subdirectory's page HTML (not the current page) and parses it so
+// gitcatScrapeChildren can be reused on it, for recursive mode.
+async function gitcatFetchDirDocument(owner, repo, branch, path) {
+    const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+    const url = `/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/tree/${encodeURIComponent(
+        branch
+    )}/${encodedPath}`;
+    const res = await fetch(url, { credentials: "same-origin" });
+    if (!res.ok) {
+        throw new Error(`fetch failed: ${res.status}`);
+    }
+    const html = await res.text();
+    return new DOMParser().parseFromString(html, "text/html");
+}
+
+// Collects items for a directory. In non-recursive mode, subdirectories are
+// listed as a single [DIRECTORY] entry. In recursive mode, each subdirectory's
+// page is fetched and walked too, and its files are inlined into the result.
+async function gitcatCollectDir(owner, repo, branch, path, root, recursive) {
+    const { branch: resolvedBranch, children } = gitcatScrapeChildren(owner, repo, branch, path, root);
+    if (!resolvedBranch || children.length === 0) {
+        return { branch: resolvedBranch, items: [] };
+    }
+
+    children.sort((a, b) => a.path.localeCompare(b.path));
+
+    const items = [];
+    for (const child of children) {
+        if (child.type === "dir") {
+            if (recursive) {
+                const subDoc = await gitcatFetchDirDocument(owner, repo, resolvedBranch, child.path);
+                const sub = await gitcatCollectDir(owner, repo, resolvedBranch, child.path, subDoc, recursive);
+                items.push(...sub.items);
+            } else {
+                items.push({ type: "dir", path: child.path });
+            }
+            continue;
+        }
+        if (gitcatIsBinaryPath(child.path)) {
+            items.push({ type: "file", path: child.path, binary: true });
+            continue;
+        }
+        try {
+            const content = await gitcatFetchRawText(owner, repo, resolvedBranch, child.path);
+            items.push({ type: "file", path: child.path, content });
+        } catch (e) {
+            items.push({ type: "file", path: child.path, binary: true });
+        }
+    }
+
+    return { branch: resolvedBranch, items };
+}
+
 async function gitcatGenerate() {
     const parsed = gitcatParseCurrentPage();
     if (!parsed) {
@@ -149,38 +202,21 @@ async function gitcatGenerate() {
         return { ok: true, text: gitcatFormatOutput(items, meta), meta };
     }
 
-    const { branch, children } = gitcatScrapeChildren(
+    const settings = await gitcatGetSettings();
+    const { branch, items } = await gitcatCollectDir(
         parsed.owner,
         parsed.repo,
         parsed.branch,
-        parsed.path
+        parsed.path,
+        document,
+        settings.recursive
     );
 
-    if (!branch || children.length === 0) {
+    if (!branch || items.length === 0) {
         return {
             ok: false,
             error: "Directory not found (this may not be a repository page)",
         };
-    }
-
-    children.sort((a, b) => a.path.localeCompare(b.path));
-
-    const items = [];
-    for (const child of children) {
-        if (child.type === "dir") {
-            items.push({ type: "dir", path: child.path });
-            continue;
-        }
-        if (gitcatIsBinaryPath(child.path)) {
-            items.push({ type: "file", path: child.path, binary: true });
-            continue;
-        }
-        try {
-            const content = await gitcatFetchRawText(parsed.owner, parsed.repo, branch, child.path);
-            items.push({ type: "file", path: child.path, content });
-        } catch (e) {
-            items.push({ type: "file", path: child.path, binary: true });
-        }
     }
 
     const meta = {

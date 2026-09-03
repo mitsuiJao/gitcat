@@ -21,6 +21,9 @@ function setBusy(busy) {
 }
 
 async function init() {
+    const settings = await gitcatGetSettings();
+    gitcatApplyDarkMode(settings.darkMode);
+
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     activeTab = tab;
 
@@ -91,8 +94,24 @@ async function handleCopy() {
     }
 }
 
-function handleSettings() {
-    setMessage("Settings coming soon");
+async function handleSettings() {
+    const settings = await gitcatGetSettings();
+    mainEl.innerHTML =
+        '<label><input type="checkbox" id="chk-recursive"> Recursive (include subdirectories)</label><br>' +
+        '<label><input type="checkbox" id="chk-dark"> Dark mode</label>';
+
+    const chkRecursive = document.getElementById("chk-recursive");
+    const chkDark = document.getElementById("chk-dark");
+    chkRecursive.checked = settings.recursive;
+    chkDark.checked = settings.darkMode;
+
+    chkRecursive.addEventListener("change", () => {
+        gitcatSetSettings({ recursive: chkRecursive.checked });
+    });
+    chkDark.addEventListener("change", () => {
+        gitcatSetSettings({ darkMode: chkDark.checked });
+        gitcatApplyDarkMode(chkDark.checked);
+    });
 }
 
 btnRaw.addEventListener("click", handleRaw);
