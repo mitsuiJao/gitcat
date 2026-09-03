@@ -52,8 +52,17 @@ async function init() {
     setMessage("");
 }
 
+function getExcludePatterns() {
+    const raw = document.getElementById("exclude").value;
+    return raw
+        .split(/(?<!\\),/)
+        .map((part) => part.trim().replace(/\\,/g, ","))
+        .filter((part) => part && !part.startsWith("#"));
+}
+
 async function requestGenerate() {
-    const response = await chrome.tabs.sendMessage(activeTab.id, { action: "gitcat:generate" });
+    const exclude = getExcludePatterns();
+    const response = await chrome.tabs.sendMessage(activeTab.id, { action: "gitcat:generate", exclude });
     return response;
 }
 

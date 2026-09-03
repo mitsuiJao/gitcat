@@ -58,8 +58,12 @@ function gitcatIsBinaryPath(path) {
 function gitcatFormatOutput(items, meta) {
     const lines = [];
     lines.push(`Repository: ${meta.owner}/${meta.repo}`);
+    lines.push(`URL: ${meta.url}`);
     lines.push(`Path: ${meta.path || "(root)"}`);
     lines.push(`Branch: ${meta.branch}`);
+    if (meta.exclude && meta.exclude.length > 0) {
+        lines.push(`Exclude: ${meta.exclude.join(", ")}`);
+    }
     lines.push("=".repeat(50));
     lines.push("");
 

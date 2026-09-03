@@ -5,6 +5,45 @@ function gitcatEscapeRegExp(str) {
     return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Compiles a single gitignore-style pattern line into a matcher.
+// Supports "*" wildcards, an optional trailing "/" (directory-only match),
+// and an optional leading "/" (anchored to the queried root instead of
+// matching at any depth).
+function gitcatCompileExcludePattern(pattern) {
+    let p = pattern.trim();
+    if (!p || p.startsWith("#")) {
+        return null;
+    }
+
+    const dirOnly = p.endsWith("/");
+    if (dirOnly) {
+        p = p.slice(0, -1);
+    }
+    const anchored = p.startsWith("/");
+    if (anchored) {
+        p = p.slice(1);
+    }
+
+    const escaped = p.split("*").map(gitcatEscapeRegExp).join("[^/]*");
+    const regexStr = anchored ? `^${escaped}(/.*)?$` : `(^|/)${escaped}(/.*)?$`;
+
+    return { regex: new RegExp(regexStr), dirOnly };
+}
+
+function gitcatCompileExcludePatterns(patterns) {
+    return (patterns || [])
+        .map(gitcatCompileExcludePattern)
+        .filter((p) => p !== null);
+}
+
+function gitcatIsExcluded(path, type, compiledPatterns) {
+    for (const cp of compiledPatterns) {
+        if (cp.dirOnly && type !== "dir") continue;
+        if (cp.regex.test(path)) return true;
+    }
+    return false;
+}
+
 function gitcatParseCurrentPage() {
     const parts = location.pathname
         .split("/")
@@ -138,7 +177,7 @@ async function gitcatFetchDirDocument(owner, repo, branch, path) {
 // Collects items for a directory. In non-recursive mode, subdirectories are
 // listed as a single [DIRECTORY] entry. In recursive mode, each subdirectory's
 // page is fetched and walked too, and its files are inlined into the result.
-async function gitcatCollectDir(owner, repo, branch, path, root, recursive) {
+async function gitcatCollectDir(owner, repo, branch, path, root, recursive, excludePatterns) {
     const { branch: resolvedBranch, children } = gitcatScrapeChildren(owner, repo, branch, path, root);
     if (!resolvedBranch || children.length === 0) {
         return { branch: resolvedBranch, items: [] };
@@ -148,10 +187,21 @@ async function gitcatCollectDir(owner, repo, branch, path, root, recursive) {
 
     const items = [];
     for (const child of children) {
+        if (gitcatIsExcluded(child.path, child.type, excludePatterns)) {
+            continue;
+        }
         if (child.type === "dir") {
             if (recursive) {
                 const subDoc = await gitcatFetchDirDocument(owner, repo, resolvedBranch, child.path);
-                const sub = await gitcatCollectDir(owner, repo, resolvedBranch, child.path, subDoc, recursive);
+                const sub = await gitcatCollectDir(
+                    owner,
+                    repo,
+                    resolvedBranch,
+                    child.path,
+                    subDoc,
+                    recursive,
+                    excludePatterns
+                );
                 items.push(...sub.items);
             } else {
                 items.push({ type: "dir", path: child.path });
@@ -173,13 +223,15 @@ async function gitcatCollectDir(owner, repo, branch, path, root, recursive) {
     return { branch: resolvedBranch, items };
 }
 
-async function gitcatGenerate() {
+async function gitcatGenerate(rawExcludePatterns) {
     const parsed = gitcatParseCurrentPage();
     if (!parsed) {
         return { ok: false, error: "This doesn't look like a GitHub repository or directory page" };
     }
 
     const settings = await gitcatGetSettings();
+    const excludeList = (rawExcludePatterns || []).filter((p) => p && !p.startsWith("#"));
+    const compiledExclude = gitcatCompileExcludePatterns(excludeList);
     let items, meta;
 
     if (parsed.mode === "file") {
@@ -200,6 +252,8 @@ async function gitcatGenerate() {
             repo: parsed.repo,
             branch: parsed.branch,
             path: parsed.path,
+            url: location.href,
+            exclude: excludeList,
         };
     } else {
         const collected = await gitcatCollectDir(
@@ -208,7 +262,8 @@ async function gitcatGenerate() {
             parsed.branch,
             parsed.path,
             document,
-            settings.recursive
+            settings.recursive,
+            compiledExclude
         );
 
         if (!collected.branch || collected.items.length === 0) {
@@ -225,6 +280,8 @@ async function gitcatGenerate() {
             branch: collected.branch,
             path: parsed.path,
             count: items.length,
+            url: location.href,
+            exclude: excludeList,
         };
     }
 
@@ -241,7 +298,7 @@ async function gitcatGenerate() {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg && msg.action === "gitcat:generate") {
-        gitcatGenerate()
+        gitcatGenerate(msg.exclude)
             .then(sendResponse)
             .catch((err) => sendResponse({ ok: false, error: String((err && err.message) || err) }));
         return true; // keep the message channel open for the async response
