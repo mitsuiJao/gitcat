@@ -179,9 +179,11 @@ async function gitcatGenerate() {
         return { ok: false, error: "This doesn't look like a GitHub repository or directory page" };
     }
 
+    const settings = await gitcatGetSettings();
+    let items, meta;
+
     if (parsed.mode === "file") {
         const isBinary = gitcatIsBinaryPath(parsed.path);
-        let items;
         if (isBinary) {
             items = [{ type: "file", path: parsed.path, binary: true }];
         } else {
@@ -193,39 +195,47 @@ async function gitcatGenerate() {
             );
             items = [{ type: "file", path: parsed.path, content }];
         }
-        const meta = {
+        meta = {
             owner: parsed.owner,
             repo: parsed.repo,
             branch: parsed.branch,
             path: parsed.path,
         };
-        return { ok: true, text: gitcatFormatOutput(items, meta), meta };
-    }
+    } else {
+        const collected = await gitcatCollectDir(
+            parsed.owner,
+            parsed.repo,
+            parsed.branch,
+            parsed.path,
+            document,
+            settings.recursive
+        );
 
-    const settings = await gitcatGetSettings();
-    const { branch, items } = await gitcatCollectDir(
-        parsed.owner,
-        parsed.repo,
-        parsed.branch,
-        parsed.path,
-        document,
-        settings.recursive
-    );
+        if (!collected.branch || collected.items.length === 0) {
+            return {
+                ok: false,
+                error: "Directory not found (this may not be a repository page)",
+            };
+        }
 
-    if (!branch || items.length === 0) {
-        return {
-            ok: false,
-            error: "Directory not found (this may not be a repository page)",
+        items = collected.items;
+        meta = {
+            owner: parsed.owner,
+            repo: parsed.repo,
+            branch: collected.branch,
+            path: parsed.path,
+            count: items.length,
         };
     }
 
-    const meta = {
-        owner: parsed.owner,
-        repo: parsed.repo,
-        branch,
-        path: parsed.path,
-        count: items.length,
-    };
+    if (settings.lineNumbers) {
+        for (const item of items) {
+            if (item.type === "file" && !item.binary && typeof item.content === "string") {
+                item.content = gitcatAddLineNumbers(item.content);
+            }
+        }
+    }
+
     return { ok: true, text: gitcatFormatOutput(items, meta), meta };
 }
 

@@ -98,15 +98,21 @@ async function handleSettings() {
     const settings = await gitcatGetSettings();
     mainEl.innerHTML =
         '<label><input type="checkbox" id="chk-recursive"> Recursive (include subdirectories)</label><br>' +
+        '<label><input type="checkbox" id="chk-linenumbers"> Line numbers</label><br>' +
         '<label><input type="checkbox" id="chk-dark"> Dark mode</label>';
 
     const chkRecursive = document.getElementById("chk-recursive");
+    const chkLineNumbers = document.getElementById("chk-linenumbers");
     const chkDark = document.getElementById("chk-dark");
     chkRecursive.checked = settings.recursive;
+    chkLineNumbers.checked = settings.lineNumbers;
     chkDark.checked = settings.darkMode;
 
     chkRecursive.addEventListener("change", () => {
         gitcatSetSettings({ recursive: chkRecursive.checked });
+    });
+    chkLineNumbers.addEventListener("change", () => {
+        gitcatSetSettings({ lineNumbers: chkLineNumbers.checked });
     });
     chkDark.addEventListener("change", () => {
         gitcatSetSettings({ darkMode: chkDark.checked });

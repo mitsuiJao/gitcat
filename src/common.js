@@ -1,6 +1,6 @@
 // Shared utilities for gitcat (used by content scripts, the popup, and the raw page)
 
-const GITCAT_DEFAULT_SETTINGS = { recursive: false, darkMode: false };
+const GITCAT_DEFAULT_SETTINGS = { recursive: false, darkMode: false, lineNumbers: false };
 
 function gitcatGetSettings() {
     return new Promise((resolve) => {
@@ -15,8 +15,13 @@ function gitcatSetSettings(partial) {
 }
 
 function gitcatApplyDarkMode(enabled) {
-    document.body.style.background = enabled ? "#1e1e1e" : "";
-    document.body.style.color = enabled ? "#ddd" : "";
+    document.documentElement.style.colorScheme = enabled ? "dark" : "light";
+}
+
+function gitcatAddLineNumbers(content) {
+    const lines = content.split("\n");
+    const width = String(lines.length).length;
+    return lines.map((line, i) => `${String(i + 1).padStart(width)}: ${line}`).join("\n");
 }
 
 const GITCAT_BINARY_EXTENSIONS = new Set([
