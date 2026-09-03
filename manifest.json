@@ -1,0 +1,20 @@
+{
+    "manifest_version": 3,
+    "name": "gitcat",
+    "version": "0.1.0",
+    "description": "Cat all files in a GitHub directory into one text, to paste into an LLM",
+    "action": {
+        "default_popup": "popup.html"
+    },
+    "permissions": [
+        "activeTab",
+        "storage"
+    ],
+    "content_scripts": [
+        {
+            "matches": ["https://github.com/*"],
+            "js": ["src/common.js", "src/content-github.js"],
+            "run_at": "document_idle"
+        }
+    ]
+}

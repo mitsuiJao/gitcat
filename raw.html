@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>gitcat raw</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: monospace;
+        }
+
+        #toolbar {
+            position: sticky;
+            top: 0;
+            padding: 8px;
+        }
+
+        #toolbar button {
+            padding: 4px 12px;
+            cursor: pointer;
+        }
+
+        pre {
+            margin: 0;
+            padding: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="toolbar">
+        <button id="btn-copy">copy</button>
+        <span id="status"></span>
+    </div>
+    <pre id="content"></pre>
+    <script src="src/raw.js"></script>
+</body>
+
+</html>
