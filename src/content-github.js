@@ -102,8 +102,11 @@ function gitcatRelativeChild(restPath, currentPath) {
 }
 
 function gitcatScrapeChildren(owner, repo, branch, path, root) {
+    // Case-insensitive: GitHub's canonical owner/repo casing (as rendered in
+    // links) can differ from the casing used in the current page's URL.
     const regex = new RegExp(
-        `^/${gitcatEscapeRegExp(owner)}/${gitcatEscapeRegExp(repo)}/(tree|blob)/([^/]+)/(.*)$`
+        `^/${gitcatEscapeRegExp(owner)}/${gitcatEscapeRegExp(repo)}/(tree|blob)/([^/]+)/(.*)$`,
+        "i"
     );
 
     const anchors = (root || document).querySelectorAll("a[href]");
@@ -114,11 +117,24 @@ function gitcatScrapeChildren(owner, repo, branch, path, root) {
         const raw = anchor.getAttribute("href");
         if (!raw) continue;
 
+        // GitHub's newer directory-listing UI renders absolute URLs
+        // (e.g. "https://github.com/owner/repo/tree/branch/...") instead of
+        // root-relative paths. Normalize to a pathname so the regex below
+        // (which expects a path starting with "/") still matches.
+        let pathValue = raw;
+        if (/^https?:\/\//i.test(raw)) {
+            try {
+                pathValue = new URL(raw).pathname;
+            } catch (e) {
+                continue;
+            }
+        }
+
         let decoded;
         try {
-            decoded = decodeURIComponent(raw);
+            decoded = decodeURIComponent(pathValue);
         } catch (e) {
-            decoded = raw;
+            decoded = pathValue;
         }
 
         const m = decoded.match(regex);

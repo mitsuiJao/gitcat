@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "gitcat",
+    "name": "Gitcat",
     "version": "0.1.0",
     "description": "Cat all files in a GitHub directory into one text, to paste into an LLM",
     "action": {
@@ -16,5 +16,11 @@
             "js": ["src/common.js", "src/content-github.js"],
             "run_at": "document_idle"
         }
-    ]
+    ],
+    "icons": {
+        "16": "icons/icon16.png",
+        "32": "icons/icon32.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
+    }
 }
